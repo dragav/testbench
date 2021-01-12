@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CertExplorer": {
+      "commandName": "Project",
+      "commandLineArgs": "probe endpoint=eg-prod-usea-252.eastus.cloudapp.azure.com ports=1026 interval=10"
+    }
+  }
+}
