@@ -2,7 +2,7 @@
   "profiles": {
     "TokenTool": {
       "commandName": "Project",
-      "commandLineArgs": "/clientid=b2f4455d-656a-485f-9c49-5e8ffe7b321e /tenantid=0e8bc57c-6d91-43a2-8711-59df4af5dbfb /clienttp=4CF3B8B3749F5CC60FD893A83A3A631083AB30B0 /aud=https://vault.azure.net/.default"
+      "commandLineArgs": "/clientid=cad25b3f-6b86-4c36-8b92-7ff7280c02be /tenantid=72f988bf-86f1-41af-91ab-2d7cd011db47 /clienttp=602e047d2d6f37bbc47ea72190bc998fd21cf1eb /aud=https://vault.azure.net/.default /sendx5c=true"
     }
   }
 }

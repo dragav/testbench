@@ -1,5 +1,4 @@
-﻿
-namespace TokenTool
+﻿namespace TokenTool
 {
     using System;
     using System.Collections.Generic;
@@ -32,27 +31,29 @@ namespace TokenTool
         
         public string ClientId { get; private set; }
 
-        private void InstantiateConfidentialClient(string tenantId)
+        private void InstantiateConfidentialClient(string tenantId, bool sendX5c)
         {
             if (app_ != null) return;
 
+            var clientCert = FindClientCert(storeName_, location_, CertificateCredentialIdentifier);
+
             app_ = ConfidentialClientApplicationBuilder
                 .Create(ClientId)
-                .WithClientAssertion(GetClientCredentialAssertion(tenantId))
+                .WithCertificate(clientCert, sendX5c)
                 .WithAuthority(AzureCloudInstance.AzurePublic, tenantId, validateAuthority: true)
                 .Build();
         }
 
-        private string GetClientCredentialAssertion(string tenantId)
+        private static X509Certificate2 FindClientCert(StoreName storeName, StoreLocation storeLocation, string x5t)
         {
-            using (var store = new X509Store(storeName_, location_, OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly))
+            using (var store = new X509Store(storeName, storeLocation, OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly))
             {
                 X509Certificate2 clientCert = null;
 
                 foreach (var enumeratedCert in store.Certificates)
                 {
-                    if (StringComparer.OrdinalIgnoreCase.Equals(CertificateCredentialIdentifier, enumeratedCert.Thumbprint))
-                    { 
+                    if (StringComparer.OrdinalIgnoreCase.Equals(x5t, enumeratedCert.Thumbprint))
+                    {
                         clientCert = enumeratedCert;
                         break;
                     }
@@ -60,33 +61,40 @@ namespace TokenTool
 
                 if (clientCert == null)
                 {
-                    Console.WriteLine($"could not find a match for {CertificateCredentialIdentifier} in {location_}/{storeName_}; exiting..");
-                    throw new ArgumentException("could not find a match for certificate {0}", CertificateCredentialIdentifier);
+                    Console.WriteLine($"could not find a match for {x5t} in {storeLocation}/{storeName}; exiting..");
+                    throw new ArgumentException("could not find a match for certificate {0}", x5t);
                 }
 
-                // prepare the claims for the self-signed token
-                string aud = $"https://login.microsoftonline.com/{tenantId}/v2.0";
-                var claims = new Dictionary<string, object>
-                {
-                    { "aud", aud },
-                    { "iss", ClientId },
-                    { "sub", ClientId },
-                    { "jti", Guid.NewGuid().ToString() },
-                };
-
-                var tokenDescriptor = new SecurityTokenDescriptor
-                {
-                    Claims = claims,
-                    SigningCredentials = new X509SigningCredentials(clientCert)
-                };
-
-                return new JsonWebTokenHandler().CreateToken(tokenDescriptor);
+                return clientCert;
             }
         }
 
-        public async Task<AuthenticationResult> AcquireTokenAsync(string tenantId, string audience)
+        private string GetClientCredentialAssertion(string tenantId)
         {
-            InstantiateConfidentialClient(tenantId);
+            var clientCert = FindClientCert(storeName_, location_, CertificateCredentialIdentifier);
+
+            // prepare the claims for the self-signed token
+            string aud = $"https://login.microsoftonline.com/{tenantId}/v2.0";
+            var claims = new Dictionary<string, object>
+            {
+                { "aud", aud },
+                { "iss", ClientId },
+                { "sub", ClientId },
+                { "jti", Guid.NewGuid().ToString() },
+            };
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Claims = claims,
+                SigningCredentials = new X509SigningCredentials(clientCert)
+            };
+
+            return new JsonWebTokenHandler().CreateToken(tokenDescriptor);
+        }
+
+        public async Task<AuthenticationResult> AcquireTokenAsync(string tenantId, string audience, bool sendX5c)
+        {
+            InstantiateConfidentialClient(tenantId, sendX5c);
 
             var account = app_.GetAccountAsync(ClientId)
                 .ConfigureAwait(false)

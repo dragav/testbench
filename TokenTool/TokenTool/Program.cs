@@ -11,7 +11,8 @@
                 "clientid",
                 "tenantid",
                 "clienttp",
-                "aud"
+                "aud",
+                "sendx5c"
             };
 
         static readonly char slash_ = '/';
@@ -20,7 +21,7 @@
         static void Main(string[] args)
         {
             var parsedArgs = ParseArguments(args);
-            var result = TryAcquireToken(parsedArgs["clientid"], parsedArgs["clienttp"], parsedArgs["tenantid"], parsedArgs["aud"]);
+            var result = TryAcquireToken(parsedArgs["clientid"], parsedArgs["clienttp"], parsedArgs["tenantid"], parsedArgs["aud"], bool.Parse(parsedArgs["sendx5c"]));
             Console.WriteLine("token acquisition {0}.", result ? "succeeded" : "failed");
 
             return;
@@ -33,6 +34,7 @@
                 ThrowAndPrintHelp("(no arguments provided)");
 
             Dictionary<string, string> parsedArgs = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+
             foreach (var entry in args)
             {
                 // we expect an entry of the form: /<key>:<value>
@@ -48,12 +50,14 @@
                 parsedArgs[key] = value;
             }
 
+            // add default for sendx5c option
+            if (!parsedArgs.ContainsKey("sendx5c")) parsedArgs["sendx5c"] = "false";
             return parsedArgs;
         }
 
         private static void PrintHelp()
         {
-            Console.WriteLine("Usage: tokenTool /clientId=<cid> /tenantId=<tid> /clientTp=<client cred thumbprint> /aud=<resource>");
+            Console.WriteLine("Usage: tokenTool /clientId=<cid> /tenantId=<tid> /clientTp=<client cred thumbprint> /aud=<resource> /sendX5c=<true|*false*>");
         }
 
         private static void ThrowAndPrintHelp(string argName)
@@ -62,7 +66,7 @@
             throw new ArgumentException(argName);
         }
 
-        private static bool TryAcquireToken(string clientId, string clientCredentialTP, string tenantId, string tokenAudience)
+        private static bool TryAcquireToken(string clientId, string clientCredentialTP, string tenantId, string tokenAudience, bool sendX5c)
         {
             var result = false;
             try
@@ -73,7 +77,7 @@
                     StoreName.My,
                     clientCredentialTP);
 
-                var authResult = acquirer.AcquireTokenAsync(tenantId, tokenAudience)
+                var authResult = acquirer.AcquireTokenAsync(tenantId, tokenAudience, sendX5c)
                     .ConfigureAwait(false)
                     .GetAwaiter()
                     .GetResult();
