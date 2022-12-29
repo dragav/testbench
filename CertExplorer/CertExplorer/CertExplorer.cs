@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
@@ -277,6 +278,8 @@ public sealed class CertExplorer
                 isValidCertificate = false;
                 var issuerChainElementIdx = chain.ChainElements.Count > 1 ? 1 : 0;
                 var issuerTP = chain.ChainElements[issuerChainElementIdx].Certificate.Thumbprint;
+                var leafCN = certificate.GetNameInfo(X509NameType.SimpleName, forIssuer: false);
+                var issCN = certificate.GetNameInfo(X509NameType.SimpleName, forIssuer: true);
 
                 foreach (var expectedIssuerTP in expectedIssuerThumbprints)
                 {
@@ -286,6 +289,12 @@ public sealed class CertExplorer
                         break;
                     }
                 }
+
+                // prep a more detailed error message
+                var expectedIssuerTPsStr = String.Join(',', expectedIssuerThumbprints);
+                var issuerFoundMsg = isValidCertificate ? "" : "not ";
+                var msg = String.Format($"The leaf certificate <CN={leafCN}, TP={certificate.Thumbprint}> is issued by <CN={issCN}, TP={issuerTP}>, which was {issuerFoundMsg}found in the list of expected issuer TPs: {expectedIssuerTPsStr}.");
+                Log(msg);
             }
 
             if (isValidCertificate
