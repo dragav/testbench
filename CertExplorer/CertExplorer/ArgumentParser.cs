@@ -4,6 +4,9 @@ namespace CertExplorer
     using System;
     using System.Collections.Generic;
 
+    /// <summary>
+    /// Actions (verbs) implemented.
+    /// </summary>
     enum Actions
     {
         None,
@@ -14,9 +17,13 @@ namespace CertExplorer
         Dump,
         Acl,
         Probe,
-        Link
+        Link,
+        ValidateIssuer
     };
 
+    /// <summary>
+    /// Set of all parameters, across actions.
+    /// </summary>
     enum Params
     {
         FindType, 
@@ -25,12 +32,21 @@ namespace CertExplorer
         Interval,
         Ports,
         Endpoint,
+        IssuerSource,
+        IssuerVal
     };
 
+    /// <summary>
+    /// Class implementing the handling and parsing of command line arguments.
+    /// </summary>
     public sealed class Arguments
     {
+        /// <summary>
+        /// Mapping of parameters to actions.
+        /// </summary>
         private readonly Dictionary<string, Dictionary<string, string>> argMap_ = new Dictionary<string, Dictionary<string, string>>(StringComparer.InvariantCultureIgnoreCase);
 
+        // help for help, or missing parameters
         private static readonly string helpHelp_ =
 @"CertExplorer [command] [parameters]
     where commands are: 
@@ -39,9 +55,11 @@ namespace CertExplorer
         find
         list
         validate
+        validateIssuer
 
 Type 'CertExplorer help [command]' for command-specific usage.";
 
+        // help for Probe action
         private static readonly string probeHelp_ =
 @"CertExplorer probe [parameters]
     where supported parameters are:
@@ -63,6 +81,7 @@ e.g.:
 
 Lookup and endpoint probing can be combined in a single invocation; these will be separate timers running on the same schedule.";
 
+        // help for Find action
         private static readonly string findHelp_ =
 @"CertExplorer find [parameters]
     where required parameters are:
@@ -72,7 +91,29 @@ Lookup and endpoint probing can be combined in a single invocation; these will b
 
 All parameters must be specified.";
 
+        // help for issuer validation
+        private static readonly string issuersHelp_ =
+@"CertExplorer validateIssuer [parameters]
+    where required parameters are:
+        endpoint=<cluster management endpoint URI>       
+        ports=<cluster management endpoint port>
+        findValue=<cluster management server cert CN>
+        issuerSource=<STR | URI>
+        issuerVal=<value>
 
+'issuerSource' refers to the predetermined list of issuer thumbprints authorized for this cluster's certificate;
+    - STR: issuerVal contains the list of issuer TPs, provided as a comma-separated string in the command line 
+    - URI: issuerVal is set to the GetIssuersV2 API invocation which returns the list of issuers
+
+e.g.:
+    CertExplorer validateIssuer endpoint=sftest.westus.cloudapp.azure.com ports=19080 findValue=alice.universalexports.com issuerSource=str issuerVal=8f1fd57f27c828d7be29743b4d02cd7e6e5f43e6,2f2877c5d778c31e0f29c7e371df5471bd673173
+    ---- validates whether the server certificate presented by https://sftest.westus.cloudapp.azure.com:19080 matches CN=alice.universalexports.com and is issued by a CA with the SHA-1 TP of either 8f1fd57f27c828d7be29743b4d02cd7e6e5f43e6 or 2f2877c5d778c31e0f29c7e371df5471bd673173
+
+    CertExplorer validateIssuer endpoint=sftest.westus.cloudapp.azure.com ports=19080 findValue=alice.universalexports.com issuerSource=uri issuerVal=https://issuer.pki.azure.com/dsms/issuercertificates?getissuersv2&appType=ssl
+    ---- validates whether the server certificate presented by https://sftest.westus.cloudapp.azure.com:19080 matches CN=alice.universalexports.com and is issued by a CA returned by the invocation of the above GetIssuersV2 URI. Please specify a correct and appropriate URI, complete with parameters - appType, caName etc. For more information, please refer to http://aka.ms/getissuers.
+";
+
+        // help for specific actions
         private static readonly Dictionary<string, string> helpMap_ = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase)
         {
             { nameof(Actions.Help), helpHelp_ },
@@ -81,8 +122,10 @@ All parameters must be specified.";
             { nameof(Actions.Validate), "(not implemented)" },
             { nameof(Actions.Probe), probeHelp_ },
             { nameof(Actions.None), helpHelp_ },
+            { nameof(Actions.ValidateIssuer), issuersHelp_ },
         };
 
+        // expected params for cert lookup action
         private static readonly HashSet<string> certLookupParams_ = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase)
         {
             // all parameters are required
@@ -91,6 +134,7 @@ All parameters must be specified.";
             nameof(Params.StoreName)
         };
 
+        // expected/supported params for probing action
         private static readonly HashSet<string> probingParams_ = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase)
         {
             // either of endpoint+ports or find* are required
@@ -102,16 +146,30 @@ All parameters must be specified.";
             nameof(Params.Ports)
         };
 
+        // extended help supported for specific actions
         private static readonly HashSet<string> helpParams_ = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase)
         {
             nameof(Actions.List),
             nameof(Actions.Find),
             nameof(Actions.Validate),
-            nameof(Actions.Probe)
+            nameof(Actions.Probe),
+            nameof(Actions.ValidateIssuer)
         };
 
+        // expected params for issuer validation action
+        private static readonly HashSet<string> validateIssuerParams_ = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase)
+        {
+            nameof(Params.Endpoint),
+            nameof(Params.Ports),
+            nameof(Params.IssuerSource),
+            nameof(Params.IssuerVal),
+            nameof(Params.FindValue)
+        };
+
+        // dummy/no param object
         private static readonly HashSet<string> noParams_ = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase) { };
 
+        // mapping of parameters to actions
         private static readonly Dictionary<string, HashSet<string>> commandParams_ = new Dictionary<string, HashSet<string>>(StringComparer.InvariantCultureIgnoreCase)
         {
             { nameof(Actions.Help), helpParams_ },
@@ -120,6 +178,7 @@ All parameters must be specified.";
             { nameof(Actions.Validate), noParams_ },
             { nameof(Actions.Probe), probingParams_ },
             { nameof(Actions.None), noParams_ },
+            { nameof(Actions.ValidateIssuer), validateIssuerParams_ },
         };
 
         public Arguments(string[] args)
@@ -200,7 +259,14 @@ All parameters must be specified.";
                     throw new ArgumentException($"parameter '{paramName}' is not supported for command '{command}', or is improperly formed; see 'help {command}'.");
 
                 if (splitParams.Length > 1) // 'help' has single-value parameters
-                    result[paramName] = splitParams[1].Trim();    // discard any others
+                {
+                    var tempResult = splitParams[1].Trim();    // recombine values which may contain the splitter
+                    for (int valIdx = 2; valIdx < splitParams.Length; valIdx++)
+                    {
+                        tempResult += $"={splitParams[valIdx]}";
+                    }
+                    result[paramName] = tempResult;
+                }
                 else
                     result[paramName] = String.Empty;
             }

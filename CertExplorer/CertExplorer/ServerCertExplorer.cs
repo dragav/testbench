@@ -1,18 +1,34 @@
 ﻿namespace CertExplorer
 {
+    using Microsoft.Rest;
+    using Newtonsoft.Json;
     using System;
+    using System.Collections.Generic;
+    using System.Net.Http;
     using System.Net.Security;
     using System.Net.Sockets;
     using System.Security.Authentication;
     using System.Security.Cryptography.X509Certificates;
+    using static global::CertExplorer.CertExplorer;
 
-    public sealed class ServerCertExplorer
+    public sealed class ServerCertExplorer : IDisposable
     {
         private static readonly string v1IssuerPrefix = "Microsoft IT TLS CA";
-
+        private bool disposed = false;
         private readonly string serverUri_;
         private readonly int[] ports_;
         Logger logger_;
+        private HashSet<string> parsedIssuerSha1Tps_;
+        private static readonly HttpClient httpClient_;
+
+        static ServerCertExplorer()
+        {
+            var socketsHandler = new SocketsHttpHandler
+            {
+                PooledConnectionLifetime = TimeSpan.FromMinutes(2)
+            };
+            httpClient_ = new HttpClient(socketsHandler);
+        }
 
         public ServerCertExplorer(string serverUri, int port, Logger logger)
         {
@@ -33,6 +49,33 @@
             serverUri_ = serverUri;
             ports_ = ports;
             logger_ = logger;
+        }
+
+        ~ServerCertExplorer()
+        {
+            Dispose(false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        private void Dispose(bool disposing)
+        {
+            if (!this.disposed)
+            {
+                if (disposing)
+                {
+                    if (httpClient_ != null)
+                    {
+                        httpClient_.CancelPendingRequests();
+                    }
+                }
+
+                disposed = true;
+            }
         }
 
         public static void Probe(object state)
@@ -85,6 +128,90 @@
             }
         }
 
+        public bool ValidateIssuer(IssuerValidationConfig config)
+        {
+            try 
+            {
+                if (!InitializeIssuerInfoIfNecessary(config))
+                {
+                    logger_.Log(LogLevel.Info, "failed to initialize issuer information");
+                    return false;
+                }
+
+                X509Certificate2 serverCert;
+                using (var tcpClient = new TcpClient() { ReceiveTimeout = 5000, SendTimeout = 5 })
+                {
+                    if (!TryProbeServerEndpoint(tcpClient, config.ServerUri, config.Ports[0], out serverCert))
+                    {
+                        logger_.Log(LogLevel.Info, "failed to probe server endpoint");
+                        return false;
+                    }
+                }
+
+                IsCertificateAMatchForFindValue certMatchingFn = CertExplorer.IsMatchBySubjectCommonName;
+                if (String.IsNullOrWhiteSpace(config.FindValue))
+                {
+                    certMatchingFn = CertExplorer.AnyMatch;
+                }
+                if (!CertExplorer.TryValidateCertificate(serverCert, certMatchingFn, config.FindValue, parsedIssuerSha1Tps_, X509ChainStatusFlags.UntrustedRoot, out bool isValidCert, out X509ChainStatus[] statuses))
+                {
+                    logger_.Log(LogLevel.Info, "failed to complete certificate validation");
+                    return false;
+                }
+
+                logger_.Log(LogLevel.Info, String.Format("certificate validation completed: {0}", isValidCert ? "success": "FAILED"));
+                return isValidCert;
+            }
+            catch (Exception ex)
+            {
+                logger_.Log(LogLevel.Info, ex.Message);
+            }
+
+            return true;
+        }
+
+        delegate bool Parser(string source, out string[] output);
+
+        private bool InitializeIssuerInfoIfNecessary(IssuerValidationConfig config)
+        {
+            if (null != parsedIssuerSha1Tps_)
+            {
+                logger_.Log(LogLevel.Info, "issuers already initialized, skipping;");
+                return true;
+            }
+
+            string[] issuerSha1Tps = null;
+            Parser parser = null;
+            string sourceDesc = null;
+
+            if (string.Equals(config.IssuerSource, "uri", StringComparison.InvariantCultureIgnoreCase))
+            {
+                parser = TryGetIssuerSha1TpsFromEndpoint;
+                sourceDesc = "PKI endpoint";
+            }
+            else if (string.Equals(config.IssuerSource, "str", StringComparison.InvariantCultureIgnoreCase))
+            {
+                parser = TryGetIssuerSha1TpsFromString;
+                sourceDesc = "input string";
+            }
+            else 
+            {
+                logger_.Log(LogLevel.Info, String.Format($"invalid issuer source '{config.IssuerSource}'"));
+                return false;
+            }
+
+            if (!parser(config.IssuerValue, out issuerSha1Tps)
+                || issuerSha1Tps.Length == 0)
+            {
+                logger_.Log(LogLevel.Info, String.Format($"failed to parse issuers from {sourceDesc}.."));
+                return false;
+            }
+            parsedIssuerSha1Tps_ = new HashSet<string>(issuerSha1Tps, StringComparer.InvariantCultureIgnoreCase);
+            logger_.Log(LogLevel.Info, String.Format($"successfully extracted {parsedIssuerSha1Tps_.Count} issuer TPs from {sourceDesc}.."));
+
+            return true;
+        }
+
         private static bool NoOpRemoteCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             return true;
@@ -130,6 +257,80 @@
             }
 
             return result;
+        }
+
+        private bool TryGetIssuerSha1TpsFromEndpoint(string issuerUri, out string[] issuerSha1Tps)
+        {
+            issuerSha1Tps = null;
+            try
+            { 
+                var response = httpClient_.GetAsync(issuerUri)
+                    .ConfigureAwait(false)
+                    .GetAwaiter()
+                    .GetResult();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger_.Log(LogLevel.Info, String.Format($"failed to read issuers from '{issuerUri}'; error: {response.StatusCode}: {response.ReasonPhrase}"));
+                    return false;
+                }
+
+                string responseStr = response.Content
+                    .ReadAsStringAsync()
+                    .ConfigureAwait(false)
+                    .GetAwaiter()
+                    .GetResult();  
+
+                var issuerTree = JsonConvert.DeserializeObject<IssuerCertificatesTree>(responseStr); 
+                if (issuerTree == null
+                    || issuerTree.RootsInfos.Count < 1)
+                {
+                    logger_.Log(LogLevel.Info, "GetIssuers call returned an empty issuer tree; please check the parameters of the API call: http://aka.ms/getissuers");
+                    return false;
+                }
+
+                List<string> issuerTps = new List<string>(10);
+                foreach (var rootInfo in issuerTree.RootsInfos) 
+                {
+                    logger_.Log(LogLevel.Info, String.Format($"processing CAs of {rootInfo.CaName}"));
+                    foreach (var issuerInfo in rootInfo.Intermediates)
+                    {
+                        var issuerid = issuerInfo.IntermediateName;
+                        // the id is a string of this form: '/certificates/imported/intermediatecertificates/1e981ccddc69102a45c6693ee84389c3cf2329f1', with the trailing element being its SHA-1 thumbprint.
+                        var issuerTpTokens = issuerid.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                        issuerTps.Add(issuerTpTokens[issuerTpTokens.Length - 1]);
+                    }
+                }
+
+                issuerSha1Tps = issuerTps.ToArray();
+            }
+            catch (Exception ex)
+            {
+                logger_.Log(LogLevel.Info, ex.Message);
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryGetIssuerSha1TpsFromString(string issuerVal, out string[] issuerSha1Tps)
+        {
+            issuerSha1Tps = null;
+
+            try
+            {
+                string compactedIssuerVal = issuerVal.Replace(" ", String.Empty);
+                char[] separators = new char[] { '\n', '\r', ',' };
+                issuerSha1Tps = compactedIssuerVal.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+
+                return true;
+            }
+            catch (Exception ex) 
+            { 
+                Console.WriteLine(ex.ToString());
+            }
+
+            return false;
         }
     }
 }

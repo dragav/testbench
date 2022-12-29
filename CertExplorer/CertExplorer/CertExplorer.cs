@@ -36,6 +36,10 @@ public sealed class CertExplorer
         return StringComparer.OrdinalIgnoreCase.Equals(x509FindValue, enumeratedCert.GetNameInfo(X509NameType.SimpleName, forIssuer: false));
     }
 
+    public static bool AnyMatch(X509Certificate2 cert, string findValue) => true;
+
+    public static bool NoMatch(X509Certificate2 cert, string findValue) => false;
+
     public static Logger Logger { get; set; }
     public static CertExplorerConfig Config { get; set; }
 

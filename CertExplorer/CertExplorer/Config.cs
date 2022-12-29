@@ -30,7 +30,7 @@ namespace CertExplorer
         public string StoreName { get; set; }
     }
 
-    public sealed class ProbeConfig : CertExplorerConfig 
+    public class ProbeConfig : CertExplorerConfig 
     {
         public ProbeConfig() { }
 
@@ -44,9 +44,9 @@ namespace CertExplorer
         
         public string ServerUri { get; set; }
 
-        public int[] Ports { get; private set; }
+        public int[] Ports { get; protected set; }
 
-        private static int[] ParsePortsStr(string portsStr)
+        protected static int[] ParsePortsStr(string portsStr)
         {
             var splitPorts = portsStr.Split(',', StringSplitOptions.RemoveEmptyEntries);
             var result = new int[splitPorts.Length];
@@ -57,5 +57,23 @@ namespace CertExplorer
 
             return result;
         }
+    }
+
+    public sealed class IssuerValidationConfig : ProbeConfig
+    { 
+        public IssuerValidationConfig() { }
+
+        public IssuerValidationConfig(string portsStr)
+            : base(portsStr)
+        { }
+
+        public string IssuerSource { get; set; }
+        
+        public string IssuerValue { get; set; }
+
+        public string[] ParsedIssuers { get; private set; }
+
+        //private string[] ParseIssuersFromSource(string source, string value)
+        //{ }
     }
 }

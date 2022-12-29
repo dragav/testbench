@@ -54,6 +54,7 @@
             }
         }
 
+        #region Action-specific argument parsing and validating
         private static ProbeConfig ProbingArgsToConfig(Arguments args)
         {
             var hasEndptParams = args.ParsedArgsForCommand.ContainsKey(nameof(Params.Endpoint))
@@ -129,7 +130,7 @@
             var findValue = args.ParsedArgsForCommand[nameof(Params.FindValue)];
             var storeName = args.ParsedArgsForCommand[nameof(Params.StoreName)];
 
-            return new CertExplorerConfig
+            return new CertExplorerConfig()
             {
                 LogLevel = LogLevel.Info,
                 FindType = findType,
@@ -137,6 +138,39 @@
                 StoreName = storeName
             };
         }
+
+        private static IssuerValidationConfig IssuerArgsToConfig(Arguments args)
+        {
+            var hasEndptParams = args.ParsedArgsForCommand.ContainsKey(nameof(Params.Endpoint))
+                && args.ParsedArgsForCommand.ContainsKey(nameof(Params.Ports));
+
+            var hasIssuerParams = args.ParsedArgsForCommand.ContainsKey(nameof(Params.IssuerSource))
+                && args.ParsedArgsForCommand.ContainsKey(nameof(Params.IssuerVal));
+
+            var hasExpectedCN = args.ParsedArgsForCommand.ContainsKey(nameof(Params.FindValue));
+
+            if (!hasEndptParams 
+                || !hasIssuerParams)
+            {
+                throw new ArgumentException($"issuer validation must specify at least the endpoint, port, issuer source and value; see 'help validateIssuer'");
+            }
+
+            string portsStr = args.ParsedArgsForCommand[nameof(Params.Ports)];
+            string serverUri = args.ParsedArgsForCommand[nameof(Params.Endpoint)];
+            string issuerSrc = args.ParsedArgsForCommand[nameof(Params.IssuerSource)];
+            string issuerVal = args.ParsedArgsForCommand[nameof(Params.IssuerVal)];
+            string findValue = null;
+            if (hasExpectedCN) findValue = args.ParsedArgsForCommand[nameof(Params.FindValue)];
+
+            return new IssuerValidationConfig(portsStr)
+            {
+                ServerUri = serverUri,
+                FindValue = findValue,
+                IssuerSource = issuerSrc,
+                IssuerValue = issuerVal
+            };
+        }
+        #endregion
 
         delegate void CommandHandler(Config config);
         delegate Config ConfigBuilder(Arguments args);
@@ -146,8 +180,10 @@
             { nameof(Actions.Probe), new Tuple<ConfigBuilder, CommandHandler>(ProbingArgsToConfig, DoProbe) },
             { nameof(Actions.Find), new Tuple<ConfigBuilder, CommandHandler>(FindingArgsToConfig, DoFind) },
             { nameof(Actions.List), new Tuple<ConfigBuilder, CommandHandler>(FindingArgsToConfig, DoList) },
+            { nameof(Actions.ValidateIssuer), new Tuple<ConfigBuilder, CommandHandler>(IssuerArgsToConfig, DoValidateIssuer) }
         };
 
+        #region Action-specific handlers
         private static void DoProbe(Config probeConfig)
         {
             var ts = DateTime.UtcNow.ToString("u").Replace(':', ' ').Replace('-', ' ').Replace(" ", "");
@@ -175,7 +211,30 @@
         private static void DoList(Config probeConfig)
         { }
 
-        private static void ListEnvVars()
+        private static void DoValidateIssuer(Config issuerConfig)
+        {
+            var typedConfig = issuerConfig as IssuerValidationConfig;
+            if (typedConfig == null) throw new ArgumentException($"{nameof(issuerConfig)} is not of expected IssuerValidationConfig type");
+
+            bool result;
+            using (var serverPoker = new ServerCertExplorer(typedConfig.ServerUri, typedConfig.Ports[0], new Logger()))
+            {
+                try
+                {
+                    result = serverPoker.ValidateIssuer(typedConfig);
+                }
+                catch (Exception)
+                {
+                    result = false;
+                }
+            }
+
+            var status = result ? "succeeded" : "failed";
+            Console.WriteLine($"certificate issuer validation for endpoint '{typedConfig.ServerUri}:{typedConfig.Ports[0]}' against subject '{typedConfig.FindValue?? "(n/a)"}' and authorized issuers from '{typedConfig.IssuerValue}' {status}.");
+        }
+    #endregion
+
+    private static void ListEnvVars()
         {
             Console.WriteLine("\n\n====== env vars ==============");
             foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
