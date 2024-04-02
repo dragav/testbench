@@ -2,7 +2,8 @@
 
 using namespace std;
 
-const wstring CertExport::_exportableCertTP = L"c2 a9 2d d7 76 40 04 bc 90 6b 87 97 4f 41 86 e5 f9 06 41 12";
+//const wstring CertExport::_exportableCertTP = L"c2 a9 2d d7 76 40 04 bc 90 6b 87 97 4f 41 86 e5 f9 06 41 12";
+const wstring CertExport::_exportableCertTP = L"09 BB 31 AF 5A 76 91 8C 92 5D A5 CE E6 F4 B2 D8 A1 6F 3B 3E";
 LPCSTR CertExport::_exportableCertCN = "CN=kvvmxttest.keyvault.security.ce.azure-int.net";
 const wstring CertExport::_headerBeginCert = L"-----BEGIN CERTIFICATE-----";
 const wstring CertExport::_headerEndCert = L"-----END CERTIFICATE-----";
@@ -63,7 +64,7 @@ PCCERT_CONTEXT CertExport::FindCertInCUStore(wstring tp)
         wprintf(L"failed to find a matching cert for %s: 0x%x..\n", tp.c_str(), dwError);
     }
 
-    if (CertCloseStore(
+    if (::CertCloseStore(
         hSysStore,
         CERT_CLOSE_STORE_CHECK_FLAG))
     {
@@ -78,7 +79,7 @@ PCCERT_CONTEXT CertExport::FindCertInCUStore(wstring tp)
     return pcCertContext;
 }
 
-void CertExport::ExportPfxToPem(wstring tp)
+void CertExport::ExportPfx(wstring tp, wstring fileName)
 {
     PCCERT_CONTEXT pcCertContext = FindCertInCUStore(tp);
     if (nullptr == pcCertContext)
@@ -92,8 +93,29 @@ void CertExport::ExportPfxToPem(wstring tp)
     DWORD cbData = 0;
     PCCERT_CONTEXT pcCloneContext = nullptr;
     BYTE* pbCryptData = nullptr;
+    LPSTR pwszEncStr = nullptr;
+
     do
     {
+        WriteBytesToFile(pcCertContext->pbCertEncoded, pcCertContext->cbCertEncoded, fileName);
+        continue;
+        //if (!::CertSerializeCertificateStoreElement(pcCertContext, 0, nullptr, &cbData))
+        //{
+        //    dwError = ::GetLastError();
+        //    printf("failed to serialize cert store element (1): 0x%x..\n", dwError);
+        //    continue;
+        //}
+
+        //pbCryptData = (BYTE*)malloc(cbData);
+        //if (!::CertSerializeCertificateStoreElement(pcCertContext, 0, pbCryptData, &cbData))
+        //{
+        //    dwError = ::GetLastError();
+        //    printf("failed to serialize cert store element (2): 0x%x..\n", dwError);
+        //    continue;
+        //}
+
+        //WriteBytesToFile(pbCryptData, cbData, file);
+
         hTempStore = ::CertOpenStore(CERT_STORE_PROV_MEMORY, 0, NULL, 0, nullptr);
         if (NULL == hTempStore)
         {
@@ -109,26 +131,52 @@ void CertExport::ExportPfxToPem(wstring tp)
             continue;
         }
 
-        CRYPT_DATA_BLOB dataBlob = { 0 };
-        if (!::PFXExportCertStoreEx(hTempStore, &dataBlob, nullptr, nullptr, EXPORT_PRIVATE_KEYS | REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY | PKCS12_INCLUDE_EXTENDED_PROPERTIES))
+        if (!::CertSaveStore(hTempStore, PKCS_7_ASN_ENCODING | X509_ASN_ENCODING, CERT_STORE_SAVE_AS_STORE, CERT_STORE_SAVE_TO_FILENAME, (void*)fileName.c_str(), 0))
         {
             dwError = ::GetLastError();
-            printf("failed to export cert from mem store: 0x%x..\n", dwError);
+            printf("failed to save cert store to file: 0x%x..\n", dwError);
             continue;
         }
+        //CRYPT_DATA_BLOB dataBlob = { 0 };
+        //if (!::PFXExportCertStoreEx(hTempStore, &dataBlob, nullptr, nullptr, /* EXPORT_PRIVATE_KEYS | REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY | */ PKCS12_INCLUDE_EXTENDED_PROPERTIES))
+        //{
+        //    dwError = ::GetLastError();
+        //    printf("failed to export cert from mem store: 0x%x..\n", dwError);
+        //    continue;
+        //}
 
-        pbCryptData = (BYTE*)::malloc(dataBlob.cbData);
-        dataBlob.pbData = pbCryptData;
-        if (!::PFXExportCertStoreEx(hTempStore, &dataBlob, nullptr, nullptr, EXPORT_PRIVATE_KEYS | REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY | PKCS12_INCLUDE_EXTENDED_PROPERTIES))
-        {
-            dwError = ::GetLastError();
-            printf("failed to export cert from mem store: 0x%x..\n", dwError);
-            continue;
-        }
+        //pbCryptData = (BYTE*)::malloc(dataBlob.cbData);
+        //dataBlob.pbData = pbCryptData;
+        //if (!::PFXExportCertStoreEx(hTempStore, &dataBlob, nullptr, nullptr, /* EXPORT_PRIVATE_KEYS | REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY | */ PKCS12_INCLUDE_EXTENDED_PROPERTIES))
+        //{
+        //    dwError = ::GetLastError();
+        //    printf("failed to export cert from mem store: 0x%x..\n", dwError);
+        //    continue;
+        //}
+
+        //DWORD cchEncStr = 0;
+        //if (!::CryptBinaryToStringA(pbCryptData, cbData, CRYPT_STRING_BASE64HEADER, NULL, &cchEncStr))
+        //{
+        //    dwError = ::GetLastError();
+        //    printf("failed to encode cert bytes to string (1): 0x%x..\n", dwError);
+        //    continue;
+        //}
+
+        //pwszEncStr = (LPSTR)::HeapAlloc(::GetProcessHeap(), 0, cchEncStr * sizeof(CHAR));
+        //if (!::CryptBinaryToStringA(pbCryptData, cbData, CRYPT_STRING_BASE64HEADER, NULL, &cchEncStr))
+        //{
+        //    dwError = ::GetLastError();
+        //    printf("failed to encode cert bytes to string (2): 0x%x..\n", dwError);
+        //    continue;
+        //}
+
+        ////WriteToFile(pwszEncStr, cchEncStr, "pfxexportstr.cer");
+        //WriteBytesToFile((BYTE*)pwszEncStr, cchEncStr * sizeof(CHAR), file);
 
     } while (false);
 
-    ::free(pbCryptData);
+    //::HeapFree(::GetProcessHeap(), 0, pwszEncStr);
+    //::free(pbCryptData);
     ::CertCloseStore(hTempStore, CERT_CLOSE_STORE_CHECK_FLAG);
 }
 
@@ -368,14 +416,32 @@ void CertExport::WriteToFile(LPCSTR b64Str, DWORD cchLen, const string file)
     if ((err = fopen_s(&fp, file.c_str(), "wb")) != 0)
         printf("File was not opened\n");
     else
-        //for (int i = 0; i < cchLen; i++)
-        //    fprintf(fp, "%c", b64Str + i);
-        fprintf(fp, b64Str);
+        for (int i = 0; i < cchLen; i++)
+            fprintf(fp, "%c", b64Str + i);
+        //fprintf(fp, b64Str);
     fclose(fp);
+}
+
+void CertExport::WriteBytesToFile(BYTE* pbBytes, DWORD cbLen, const wstring filename)
+{
+    auto hFile = ::CreateFile(filename.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (INVALID_HANDLE_VALUE == hFile)
+    {
+        printf("\nfailed to create cert file; error: %x", ::GetLastError());
+        return;
+    }
+
+    DWORD cbWritten = 0;
+    if (!::WriteFile(hFile, pbBytes, cbLen, &cbWritten, NULL))
+    {
+        printf("\nfailed to write to file; error: %x", ::GetLastError());
+    }
+
+    ::CloseHandle(hFile);
 }
 
 void CertExport::Run()
 {
-    //ExportPfxToPem(_exportableCertTP);
-    ExportPfxToPemOldApi(_exportableCertTP, "pfx2pemexportedcert");
+    ExportPfx(_exportableCertTP, L"pfxexport.cer");
+    //ExportPfxToPemOldApi(_exportableCertTP, "pfx2pemexportedcert");
 }

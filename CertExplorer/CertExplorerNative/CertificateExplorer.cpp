@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "CertificateExplorer.h"
 
-const string_t CertificateExplorer::_LocalMachine(__T("LocalMachine"));
-const string_t CertificateExplorer::_CurrentUser(__T("CurrentUser"));
-const string_t CertificateExplorer::_My(__T("MY"));
+const wstring CertificateExplorer::_LocalMachine(__T("LocalMachine"));
+const wstring CertificateExplorer::_CurrentUser(__T("CurrentUser"));
+const wstring CertificateExplorer::_My(__T("MY"));
 
 CertificateExplorer::CertificateExplorer()
     :CertificateExplorer(_My, _CurrentUser)
@@ -11,7 +11,7 @@ CertificateExplorer::CertificateExplorer()
 }
 
 
-CertificateExplorer::CertificateExplorer(std::basic_string name, std::basic_string location)
+CertificateExplorer::CertificateExplorer(wstring name, wstring location)
 {
     if (_store != nullptr)
     {

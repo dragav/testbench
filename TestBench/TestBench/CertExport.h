@@ -3,10 +3,11 @@ class CertExport
 {
 public:
 	static void ExportPfxToPemOldApi(std::wstring, std::string);
-	static void ExportPfxToPem(std::wstring);
+	static void ExportPfx(std::wstring, std::wstring);
 	static std::vector<BYTE> HashStringToBytes(std::wstring);
 	static PCCERT_CONTEXT FindCertInCUStore(std::wstring);
 	static void WriteToFile(LPCSTR pbData, DWORD cchLen, const std::string);
+	static void WriteBytesToFile(BYTE* pbData, DWORD cbLen, const std::wstring file);
 	static void Run();
 
 private:

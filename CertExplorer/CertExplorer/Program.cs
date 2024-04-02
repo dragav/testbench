@@ -1,14 +1,24 @@
 ﻿namespace CertExplorer
 {
+    using Microsoft.IdentityModel.Tokens;
+    using Newtonsoft.Json.Linq;
     using System;
     using System.Collections;
     using System.Collections.Generic;
+    using System.IdentityModel.Tokens.Jwt;
     using System.IO;
     using System.Linq;
     using System.Security.Cryptography.X509Certificates;
 
     class Program
     {
+        public static string CustomIssuerValidator(string issuer, SecurityToken securityToken, TokenValidationParameters validationParameters)
+        {
+            ;
+
+            return String.Empty;
+        }
+
         static void Main(string[] args)
         {
             if (Arguments.TryParse(args, out Arguments parsedArgs))

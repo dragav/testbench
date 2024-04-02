@@ -21,6 +21,9 @@
     <ClInclude Include="TestClasses.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="CertExport.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -30,6 +33,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="TestClass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CertExport.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
