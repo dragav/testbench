@@ -1,16 +1,50 @@
 ﻿namespace CertExplorer
 {
+    using Microsoft.IdentityModel.Tokens;
+    using Newtonsoft.Json.Linq;
     using System;
     using System.Collections;
     using System.Collections.Generic;
+    using System.IdentityModel.Tokens.Jwt;
     using System.IO;
     using System.Linq;
     using System.Security.Cryptography.X509Certificates;
 
     class Program
     {
+        public static string CustomIssuerValidator(string issuer, SecurityToken securityToken, TokenValidationParameters validationParameters)
+        {
+            ;
+
+            return String.Empty;
+        }
+
         static void Main(string[] args)
         {
+
+            var issuers = new string[]
+            {
+                "https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47",
+                "https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0/",
+                "https://sts.windows.net/72f988bf-86f1-41af-91ab-2d7cd011db47",
+                "https://sts.windows.net/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0/"
+            };
+
+            var token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6Ii1LSTNROW5OUjdiUm9meG1lWm9YcWJIWkdldyJ9.eyJhdWQiOiJkYjljNWExNy04NmJlLTQwZjYtOWM3ZC0zZGIxYzQxNDU2NjUiLCJpc3MiOiJodHRwczovL2xvZ2luLm1pY3Jvc29mdG9ubGluZS5jb20vNzJmOTg4YmYtODZmMS00MWFmLTkxYWItMmQ3Y2QwMTFkYjQ3L3YyLjAiLCJpYXQiOjE2ODM4NDI5NjIsIm5iZiI6MTY4Mzg0Mjk2MiwiZXhwIjoxNjgzODQ2ODYyLCJhaW8iOiJBWFFBaS84VEFBQUFZZ3dmemVRbGNUUTZUc2dydEJFUm52V2JOOFE4UExtVFN0NFdPcjltVkczNi9HYXM0dGwwNXF1NmJISUg0T1EyeXlOYlUxbGkrMXB5aFN2aTNXdUg3RGJ2WDZRcE1tU2xaaDFmcXBjSjdiaW8yQnFKbGo5TGV3YWZ3dlh1cFlzclpDN0ozSVYxR0ZVWitGalNhWDFTTlE9PSIsIm5hbWUiOiJKZWZmcmV5IEphcnJ5Iiwibm9uY2UiOiI2OWY5YmExMi05OTYwLTQzMTItOWM2MS0xMzk4YmQ5YzUzOTYiLCJvaWQiOiJmNjYzMTU1ZC03MGI1LTQzMTktYmJmZi03ODQ4ODg5ZWNlYjkiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqZWphcnJ5QG1pY3Jvc29mdC5jb20iLCJyaCI6IjAuQVRNQXY0ajVjdkdHcjBHUnF5MTgwQkhiUnhkYW5OdS1odlpBbkgwOXNjUVVWbVVhQUtFLiIsInJvbGVzIjpbIkFkbWluIiwiVXNlciJdLCJzdWIiOiJZUW9zbmlwU21ZaUtmWTZpOXVfVVZUWVNiS2UtYWtLOWFCbllaLTZ3OENnIiwidGlkIjoiNzJmOTg4YmYtODZmMS00MWFmLTkxYWItMmQ3Y2QwMTFkYjQ3IiwidXRpIjoiY1Vxa2lxd1RzRWloOW5KSEhUOFVBQSIsInZlciI6IjIuMCJ9.bBZVfxRUvk_VrtlNwB7k2mIDyJbwvPvTCmE4Jof_FfkCjBD_zgxwxV_NKYUoyY97uqPPjvNgaUqKDzW74Mqlb8MhiOCcK2KTvWADkwL9sjqOjYkXW0stq4RqQZzuGWAhPKqKd9etPYv6b_dykwEhtrafX_QteWjUHAaF39uBwxus4A8Era07arSMmRDgMBLTSK6E21k0nQZ_k5n7S9IJ9hmsyf9ftgV05zLaDcA9ZOdwqJceuMlg7fK8Zm9wf1pFQ7ofysPr_tqyK8zmNGADNHJ_3vl7PpPCqQ6fkYZiB89KffmylyZgMBOtmbUf7RvGKvhHa2LjShRwkCJszw772w";
+            var tokenParams = new TokenValidationParameters
+            {
+                ValidIssuers = issuers,
+                ValidateLifetime = false,
+                IssuerValidator = CustomIssuerValidator,
+                IssuerValidatorUsingConfiguration = null
+            };
+            try
+            {
+                var handler = new JwtSecurityTokenHandler().ValidateToken(token, tokenParams, out var jwtToken);
+            }
+            catch (Exception ex)
+            { Console.WriteLine(ex); }
+
             if (Arguments.TryParse(args, out Arguments parsedArgs))
             {
                 ProcessArguments(parsedArgs);
