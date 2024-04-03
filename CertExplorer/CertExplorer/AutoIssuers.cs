@@ -116,10 +116,10 @@ namespace CertExplorer
                     continue;
                 }
 
-                Console.WriteLine($"{entry.Key}:{entry.Value.Count}");
+                Console.WriteLine($"==== \nSKI: {entry.Key} with {entry.Value.Count} matches:\n|");
                 foreach (var kvp in entry.Value)
                 {
-                    Console.WriteLine($"\t{kvp.Item1}, TP:{kvp.Item2}, NBF:{kvp.Item3}, NA:{kvp.Item4}, by {kvp.Item5}");
+                    Console.WriteLine($"|--\t{kvp.Item1}, TP:{kvp.Item2}, NBF:{kvp.Item3}, NA:{kvp.Item4}, by {kvp.Item5}");
                 }
             }
         }
