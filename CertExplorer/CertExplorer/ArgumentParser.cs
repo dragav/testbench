@@ -18,7 +18,8 @@ namespace CertExplorer
         Acl,
         Probe,
         Link,
-        ValidateIssuer
+        ValidateIssuer,
+        GetIssuers,
     };
 
     /// <summary>
@@ -56,6 +57,7 @@ namespace CertExplorer
         list
         validate
         validateIssuer
+        getIssuers
 
 Type 'CertExplorer help [command]' for command-specific usage.";
 
@@ -92,7 +94,7 @@ Lookup and endpoint probing can be combined in a single invocation; these will b
 All parameters must be specified.";
 
         // help for issuer validation
-        private static readonly string issuersHelp_ =
+        private static readonly string validateIssuersHelp_ =
 @"CertExplorer validateIssuer [parameters]
     where required parameters are:
         endpoint=<cluster management endpoint URI>       
@@ -113,6 +115,19 @@ e.g.:
     ---- validates whether the server certificate presented by https://sftest.westus.cloudapp.azure.com:19080 matches CN=alice.universalexports.com and is issued by a CA returned by the invocation of the above GetIssuersV2 URI. Please specify a correct and appropriate URI, complete with parameters - appType, caName etc. For more information, please refer to http://aka.ms/getissuers.
 ";
 
+        // help for issuer validation
+        private static readonly string getIssuersHelp_ =
+@"CertExplorer getIssuers [parameters]
+    where required parameters are:
+        issuerVal=<value>
+
+issuerVal is the GetIssuersV2 API invocation which returns the list of issuers
+
+e.g.:
+    CertExplorer getIssuers issuerVal=https://issuer.pki.azure.com/dsms/issuercertificates?getissuersv2&appType=ssl
+    ---- prints an ordered list of CAs returned by the invocation of the above GetIssuersV2 URI. Please specify a correct and appropriate URI, complete with parameters - appType, caName etc. For more information, please refer to http://aka.ms/getissuers.
+";
+
         // help for specific actions
         private static readonly Dictionary<string, string> helpMap_ = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase)
         {
@@ -122,7 +137,8 @@ e.g.:
             { nameof(Actions.Validate), "(not implemented)" },
             { nameof(Actions.Probe), probeHelp_ },
             { nameof(Actions.None), helpHelp_ },
-            { nameof(Actions.ValidateIssuer), issuersHelp_ },
+            { nameof(Actions.ValidateIssuer), validateIssuersHelp_ },
+            { nameof(Actions.GetIssuers), getIssuersHelp_ },
         };
 
         // expected params for cert lookup action
@@ -166,6 +182,12 @@ e.g.:
             nameof(Params.FindValue)
         };
 
+        // expected params for issuer validation action
+        private static readonly HashSet<string> getIssuerParams_ = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase)
+        {
+            nameof(Params.IssuerVal)
+        };
+
         // dummy/no param object
         private static readonly HashSet<string> noParams_ = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase) { };
 
@@ -179,6 +201,7 @@ e.g.:
             { nameof(Actions.Probe), probingParams_ },
             { nameof(Actions.None), noParams_ },
             { nameof(Actions.ValidateIssuer), validateIssuerParams_ },
+            { nameof(Actions.GetIssuers), getIssuerParams_ },
         };
 
         public Arguments(string[] args)

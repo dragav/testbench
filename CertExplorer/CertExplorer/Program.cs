@@ -180,6 +180,28 @@
                 IssuerValue = issuerVal
             };
         }
+
+        private static IssuerRetrievalConfig GetIssuerArgsToConfig(Arguments args)
+        {
+            var hasEndptParams = args.ParsedArgsForCommand.ContainsKey(nameof(Params.Endpoint))
+                && args.ParsedArgsForCommand.ContainsKey(nameof(Params.Ports));
+
+            var hasIssuerParams = args.ParsedArgsForCommand.ContainsKey(nameof(Params.IssuerSource))
+                && args.ParsedArgsForCommand.ContainsKey(nameof(Params.IssuerVal));
+
+            var hasExpectedCN = args.ParsedArgsForCommand.ContainsKey(nameof(Params.FindValue));
+
+            string issuerUri = string.Empty;
+            if (args.ParsedArgsForCommand.ContainsKey(nameof(Params.IssuerVal)))
+            {
+                issuerUri = args.ParsedArgsForCommand[nameof(Params.IssuerVal)];
+            }
+
+            return new IssuerRetrievalConfig()
+            {
+                IssuerValue = issuerUri
+            };
+        }
         #endregion
 
         delegate void CommandHandler(Config config);
@@ -190,7 +212,8 @@
             { nameof(Actions.Probe), new Tuple<ConfigBuilder, CommandHandler>(ProbingArgsToConfig, DoProbe) },
             { nameof(Actions.Find), new Tuple<ConfigBuilder, CommandHandler>(FindingArgsToConfig, DoFind) },
             { nameof(Actions.List), new Tuple<ConfigBuilder, CommandHandler>(FindingArgsToConfig, DoList) },
-            { nameof(Actions.ValidateIssuer), new Tuple<ConfigBuilder, CommandHandler>(IssuerArgsToConfig, DoValidateIssuer) }
+            { nameof(Actions.ValidateIssuer), new Tuple<ConfigBuilder, CommandHandler>(IssuerArgsToConfig, DoValidateIssuer) },
+            { nameof(Actions.GetIssuers), new Tuple<ConfigBuilder, CommandHandler>(GetIssuerArgsToConfig, DoGetIssuers) },
         };
 
         #region Action-specific handlers
@@ -242,9 +265,32 @@
             var status = result ? "succeeded" : "failed";
             Console.WriteLine($"certificate issuer validation for endpoint '{typedConfig.ServerUri}:{typedConfig.Ports[0]}' against subject '{typedConfig.FindValue?? "(n/a)"}' and authorized issuers from '{typedConfig.IssuerValue}' {status}.");
         }
-    #endregion
 
-    private static void ListEnvVars()
+        private static void DoGetIssuers(Config issuerRetrievalConfig)
+        {
+            var typedConfig = issuerRetrievalConfig as IssuerRetrievalConfig;
+            if (typedConfig == null) throw new ArgumentException($"{nameof(issuerRetrievalConfig)} is not of expected IssuerRetrievalConfig type");
+
+            bool result;
+            using (var issuerRetriever = new AutoIssuers(typedConfig.IssuerValue, new Logger()))
+            {
+                try
+                {
+                    issuerRetriever.Run();
+                    result = true;
+                }
+                catch (Exception)
+                {
+                    result = false;
+                }
+            }
+
+            var status = result ? "succeeded" : "failed";
+            Console.WriteLine($"attempting to retrieve certificate issuers from '{typedConfig.IssuerValue}' {status}.");
+        }
+        #endregion
+
+        private static void ListEnvVars()
         {
             Console.WriteLine("\n\n====== env vars ==============");
             foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())

@@ -262,55 +262,10 @@
         private bool TryGetIssuerSha1TpsFromEndpoint(string issuerUri, out string[] issuerSha1Tps)
         {
             issuerSha1Tps = null;
-            try
-            { 
-                var response = httpClient_.GetAsync(issuerUri)
-                    .ConfigureAwait(false)
-                    .GetAwaiter()
-                    .GetResult();
+            if (new AutoIssuers("", logger_).TryGetIssuersFromEndpoint(issuerUri, out var issuerTree))
+                issuerSha1Tps = AutoIssuers.GetIssuerTPs(issuerTree);
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    logger_.Log(LogLevel.Info, String.Format($"failed to read issuers from '{issuerUri}'; error: {response.StatusCode}: {response.ReasonPhrase}"));
-                    return false;
-                }
-
-                string responseStr = response.Content
-                    .ReadAsStringAsync()
-                    .ConfigureAwait(false)
-                    .GetAwaiter()
-                    .GetResult();  
-
-                var issuerTree = JsonConvert.DeserializeObject<IssuerCertificatesTree>(responseStr); 
-                if (issuerTree == null
-                    || issuerTree.RootsInfos.Count < 1)
-                {
-                    logger_.Log(LogLevel.Info, "GetIssuers call returned an empty issuer tree; please check the parameters of the API call: http://aka.ms/getissuers");
-                    return false;
-                }
-
-                List<string> issuerTps = new List<string>(10);
-                foreach (var rootInfo in issuerTree.RootsInfos) 
-                {
-                    logger_.Log(LogLevel.Info, String.Format($"processing CAs of {rootInfo.CaName}"));
-                    foreach (var issuerInfo in rootInfo.Intermediates)
-                    {
-                        var issuerid = issuerInfo.IntermediateName;
-                        // the id is a string of this form: '/certificates/imported/intermediatecertificates/1e981ccddc69102a45c6693ee84389c3cf2329f1', with the trailing element being its SHA-1 thumbprint.
-                        var issuerTpTokens = issuerid.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                        issuerTps.Add(issuerTpTokens[issuerTpTokens.Length - 1]);
-                    }
-                }
-
-                issuerSha1Tps = issuerTps.ToArray();
-            }
-            catch (Exception ex)
-            {
-                logger_.Log(LogLevel.Info, ex.Message);
-                return false;
-            }
-
-            return true;
+            return issuerSha1Tps != null;
         }
 
         private static bool TryGetIssuerSha1TpsFromString(string issuerVal, out string[] issuerSha1Tps)

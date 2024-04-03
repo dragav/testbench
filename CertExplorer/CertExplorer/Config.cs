@@ -76,4 +76,15 @@ namespace CertExplorer
         //private string[] ParseIssuersFromSource(string source, string value)
         //{ }
     }
+
+    public sealed class IssuerRetrievalConfig : Config
+    {
+        public IssuerRetrievalConfig() { }
+
+        public string IssuerSource { get { return "URI"; } }
+
+        public string IssuerValue { get; set; }
+
+        public string[] ParsedIssuers { get; private set; }
+    }
 }

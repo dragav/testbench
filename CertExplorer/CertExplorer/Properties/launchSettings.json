@@ -2,9 +2,7 @@
   "profiles": {
     "CertExplorer": {
       "commandName": "Project",
-      //"commandLineArgs": "validateissuer endpoint=winlrc-sfrp-00.eastus.cloudapp.azure.com ports=19080 findValue=alice.universalexports.com issuerSource=str issuerVal=8f1fd57f27c828d7be29743b4d02cd7e6e5f43e6,2f2877c5d778c31e0f29c7e371df5471bd673173"
-      //"commandLineArgs": "validateissuer endpoint=winlrc-sfrp-00.eastus.cloudapp.azure.com ports=19080 findValue=sflrc2.cloudapp.azure.com issuerSource=uri issuerVal=https://issuer.pki.azure.com/dsms/issuercertificates?getissuersv2&appType=ssl&caName=microsoft",
-      "commandLineArgs": "validateissuer endpoint=winlrc-sfrp-00.eastus.cloudapp.azure.com ports=19080 findValue=sflrc2.cloudapp.azure.com issuerSource=uri issuerVal=https://issuer.pki.azure.com/dsms/issuercertificates?getissuersv2&caName=ame"
+      "commandLineArgs": "getissuers issuerVal=https://issuer.pki.azure.com/dsms/issuercertificates?getissuersv2&apptype=ssl"
     }
   }
 }
