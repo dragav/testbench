@@ -145,7 +145,6 @@
             builder.AppendLine($"\ttoken provider: {authResult.AuthenticationResultMetadata.TokenSource}");
             builder.AppendLine($"\tAcquisition time (ms): {authResult.AuthenticationResultMetadata.DurationTotalInMs}");
             builder.AppendLine($"\tExpiresOn: {authResult.ExpiresOn}");
-            builder.AppendLine($"\tExtendedExpiresOn: {authResult.ExtendedExpiresOn}");
             builder.AppendLine($"\tIdToken: {authResult.IdToken}");
             builder.AppendLine($"\tScopes: {String.Join(',', authResult.Scopes)}");
             builder.AppendLine($"\tTenantId: {authResult.TenantId}");
