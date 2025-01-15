@@ -2,9 +2,11 @@
 {
     using System;
     using System.Collections.Generic;
-    using System.Security.Cryptography.X509Certificates;
+    using System.Threading;
     using System.Threading.Tasks;
-
+    using Azure.Core;
+    using Microsoft.Kiota.Abstractions.Serialization;
+    
     class Program
     {
         static readonly HashSet<string> keys_ = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase)
@@ -13,7 +15,9 @@
                 "tenantid",
                 "clienttp",
                 "aud",
-                "sendx5c"
+                "sendx5c",
+                "clientpempath",
+                "principalid"
             };
 
         static readonly char slash_ = '/';
@@ -22,11 +26,32 @@
         static void Main(string[] args)
         {
             var config = ParseArguments(args);
-            Console.WriteLine($"running with config: clientId = {config.ClientId}, tenantId = {config.TenantId}, clientTP = {config.ClientCredentialTP}, aud = {config.TokenAudience}, sendX5c = {config.SendX5c}");
-            //var result = TryAcquireToken(parsedArgs["clientid"], parsedArgs["clienttp"], parsedArgs["tenantid"], parsedArgs["aud"], bool.Parse(parsedArgs["sendx5c"]));
-            var result = TryAcquireToken(config.ClientId, config.TokenAudience, "", config.TenantId, config.SendX5c);
-            Console.WriteLine("token acquisition {0}.", result ? "succeeded" : "failed");
+            Console.WriteLine($"running with config: clientId = {config.ClientId}, tenantId = {config.TenantId}, clientTP = {config.ClientCredentialTP}, aud = {config.TokenAudience}, sendX5c = {config.SendX5c}, clientPemPath = {config.ClientPemPath}, principalId = {config.PrincipalId}");
 
+            Console.WriteLine($"attempting to instantiate Graph client for clientid {config.ClientId} and tenant {config.TenantId}");
+            ABACChecker.Initialize(config);
+
+            var policies = new AccessPolicy[]
+            {
+                AccessPolicy.HybridAccessPolicy,
+                AccessPolicy.CrescoBinAccessPolicy,
+                AccessPolicy.MimcoAccessPolicy,
+                AccessPolicy.HyenaAccessPolicy
+            };
+            Console.WriteLine($"evaluating {config.PrincipalId} against the following policies:");
+            foreach (var policy in policies)
+            {
+                Console.WriteLine($"\t{policy.ToString()}");
+            }
+
+            if (ABACChecker.CheckAccess(config.PrincipalId, policies[0].Resource, policies[0].Action, policies, out var matchingPolicy))
+            {
+                Console.WriteLine($"access granted to {config.PrincipalId} for policy {matchingPolicy.Name} for {matchingPolicy.Resource}/{matchingPolicy.Action}");
+            }
+            else
+            {
+                Console.WriteLine($"no policy matched for token.");
+            }
             return;
         }
 
@@ -62,7 +87,9 @@
                 ClientCredentialTP = parsedArgs.ContainsKey("clienttp") ? parsedArgs["clienttp"] : "",
                 TenantId = parsedArgs.ContainsKey("tenantid") ? parsedArgs["tenantid"] : "c7c74d3d-620e-4c8a-b565-c0c3a3061477",
                 TokenAudience = parsedArgs.ContainsKey("aud") ? parsedArgs["aud"] : "c836cbdb-7a5b-44cc-a54f-564b4b486fc6", // throw new ArgumentException("audience is required"),
-                SendX5c = parsedArgs.ContainsKey("sendx5c") ? bool.Parse(parsedArgs["sendx5c"]) : false
+                SendX5c = parsedArgs.ContainsKey("sendx5c") ? bool.Parse(parsedArgs["sendx5c"]) : false,
+                ClientPemPath = parsedArgs.ContainsKey("clientpempath") ? parsedArgs["clientpempath"] : "",
+                PrincipalId = parsedArgs.ContainsKey("principalid") ? parsedArgs["principalid"] : ""
             };        
         }
 
@@ -84,20 +111,6 @@
             string tenantId = "", 
             bool sendX5c = false)
         {
-            Console.WriteLine($"attempting to instantiate Graph client for clientid {clientId} and tenant {tenantId}");
-            var graphClient = ABACChecker.InstantiateGraphClient(clientId, tenantId);
-            Console.WriteLine($"successfully instantiated Graph client for clientid {clientId} and tenant {tenantId}");
-
-            var graphResult = Task.Run(
-                async() => await graphClient.Users["{user-id}"].GetAsync((requestConfiguration) =>
-                            {
-                                requestConfiguration.QueryParameters.Select = new string []{ "customSecurityAttributes" };
-                            }))
-                .ConfigureAwait(false)
-                .GetAwaiter()
-                .GetResult();
-            Console.WriteLine($"successfully obtained CSAs for {clientId}; result: {graphResult}");
-
             var result = false;
             // try
             // {

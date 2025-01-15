@@ -2,22 +2,27 @@ namespace TokenTool
 {
     using System;
     using System.Collections.Generic;
+    using System.Text;
 
     public class AccessPolicy
     {
+        public string Name { get; set; }
         public string Resource { get; set; }
         public string Action { get; set; }
         public AttributeAssignmentItem[] RequiredAttributes 
         { 
-            get; 
+            get
+            {
+                return ExtractDenormalizedAttributes();
+            } 
             set 
             {
-                _attributesMap = new Dictionary<string, HashSet<string>>();
+                _attributesMap = [];
                 foreach (var attribute in value)
                 {
                     if (!_attributesMap.ContainsKey(attribute.Name))
                     {
-                        _attributesMap[attribute.Name] = new HashSet<string>();
+                        _attributesMap[attribute.Name] = [];
                     }
 
                     foreach (var attrVal in attribute.Values)
@@ -28,23 +33,57 @@ namespace TokenTool
             }
         }
 
+        private AttributeAssignmentItem[] ExtractDenormalizedAttributes()
+        {
+            if (_attributesMap == null)
+            {
+                return null;
+            }
+
+            var result = new List<AttributeAssignmentItem>();
+            foreach (var attr in _attributesMap)
+            {
+                result.Add(new AttributeAssignmentItem
+                {
+                    Set = AttributeSets.AMLAccess.ToString(),
+                    Name = attr.Key,
+                    Values = [.. attr.Value],
+                    AllowMultiple = attr.Value.Count > 1
+                });
+            }
+
+            return [.. result];
+        }
+
         public static readonly AccessPolicy CrescoBinAccessPolicy = new AccessPolicyBuilder()
+            .WithName("CrescoBinAccessPolicy")
             .WithResource("MIR endpoint")
             .WithAction("read")
-            .WithRequiredTents(new string[] { Tents.CrescoBin.ToString(), Tents.CrescoDevault.ToString(), Tents.Mumford.ToString() })
+            .WithRequiredTents([Tents.CrescoBin.ToString(), Tents.CrescoDevault.ToString(), Tents.Mumford.ToString()])
             .Build();
 
         public static readonly AccessPolicy MimcoAccessPolicy = new AccessPolicyBuilder()
+            .WithName("MimcoAccessPolicy")
             .WithResource("MIR endpoint")
             .WithAction("read")
-            .WithRequiredTents(new string[] { Tents.Mumford.ToString(), Tents.Mimco.ToString() })
+            .WithRequiredTents([Tents.Mumford.ToString(), Tents.Mimco.ToString()])
             .Build();
 
         public static readonly AccessPolicy HyenaAccessPolicy = new AccessPolicyBuilder()
+            .WithName("HyenaAccessPolicy")
             .WithResource("MIR endpoint")
             .WithAction("read")
             .WithRequiredEnvironment(Environments.Hyena.ToString())
             .Build();
+
+        public static readonly AccessPolicy HybridAccessPolicy = new AccessPolicyBuilder()
+            .WithName("HybridAccessPolicy")
+            .WithResource("MIR endpoint")
+            .WithAction("read")
+            .WithRequiredEnvironment(Environments.Hyena.ToString())
+            .WithRequiredTents([Tents.Mumford.ToString(), Tents.Mimco.ToString()])
+            .Build();
+
 
         public bool IsMatch(string resource, string action, AttributeAssignmentItem[] attributes)
         {
@@ -86,6 +125,22 @@ namespace TokenTool
                 && hasAllRequiredValues;
         }
 
+        public override string ToString()
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (var key in _attributesMap.Keys)
+            {
+                sb.Append($"{key}: ");
+                foreach (var val in _attributesMap[key])
+                {
+                    sb.Append($"{val}, ");
+                }
+                _ = sb.Append("\t");
+            }
+
+            return $"AccessPolicy: Name = {Name}, Resource = {Resource}, Action = {Action}, RequiredAttributes = {sb.ToString()}";
+        }
+
         private Dictionary<string, HashSet<string>> _attributesMap;
     };
 
@@ -116,7 +171,7 @@ namespace TokenTool
             var requiredAttributes = new AttributeAssignmentItem[] {
                 new AttributeAssignmentItem {
                     Set = AttributeSets.AMLAccess.ToString(),
-                    Name = AccessAttributes.Tent.ToString(),
+                    Name = AccessAttributes.AMLAccessTent.ToString(),
                     AllowMultiple = true,
                     Values = tents
                 }};
@@ -141,7 +196,7 @@ namespace TokenTool
             var requiredAttributes = new AttributeAssignmentItem[] {
                 new AttributeAssignmentItem {
                     Set = AttributeSets.AMLAccess.ToString(),
-                    Name = AccessAttributes.Environment.ToString(),
+                    Name = AccessAttributes.AMLHostingEnv.ToString(),
                     AllowMultiple = false,
                     Values = new string[] { environment }
                 }};
@@ -158,6 +213,12 @@ namespace TokenTool
                 _accessPolicy.RequiredAttributes = newRequiredAttributes;
             }
 
+            return this;
+        }
+
+        public AccessPolicyBuilder WithName(string name)
+        {
+            _accessPolicy.Name = name;
             return this;
         }
 

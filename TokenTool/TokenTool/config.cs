@@ -7,5 +7,9 @@ namespace TokenTool
         public string TenantId { get; set; }
         public string TokenAudience { get; set; }
         public bool SendX5c { get; set; } = false;
+
+        public string ClientPemPath { get; set; }
+
+        public string PrincipalId { get; set; }
     }
 }
